@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+
+DEV=wg0
+EP=example.com:51820
+IPV4=192.168.2.2/24
+IPV6=fd01::2/64
+CLIENTKEY=/home/user/.certs/wg/client.key
+SERVERPUBKEY=$(cat /home/user/.certs/wg/wgserver.pub)
+MARK=0xcafebabe
+TABLE=$MARK
+
+function up {
+
+sudo ip link add $DEV type wireguard
+sudo ip addr add $IPV4 dev $DEV
+sudo ip addr add $IPV6 dev $DEV
+sudo wg set $DEV private-key $CLIENTKEY fwmark $MARK
+sudo wg set $DEV peer $SERVERPUBKEY endpoint $EP allowed-ips ::/0,0.0.0.0/0
+sudo ip link set up dev $DEV
+
+sudo ip route add default dev $DEV table $TABLE
+sudo ip rule add not fwmark $MARK  table $TABLE
+sudo ip rule add table main suppress_prefixlength 0
+
+sudo ip -6 route add default dev $DEV table $TABLE
+sudo ip -6 rule add not fwmark $MARK table $TABLE
+sudo ip -6 rule add table main suppress_prefixlength 0
+
+for iface in $(ls /sys/class/net) ; do
+    if systemd-resolve --status $iface | grep "~\.$" > /dev/null ; then
+        sudo systemd-resolve --interface $iface --set-domain old_default_dns
+    fi
+done
+
+sudo systemd-resolve --interface $DEV \
+    --set-dns 2001:4860:4860::8888 \
+    --set-dns 2001:4860:4860::8844 \
+    --set-dns 8.8.8.8 \
+    --set-dns 8.8.4.4 \
+    --set-domain "~."
+
+}
+
+function down {
+
+sudo ip link del $DEV
+while sudo ip rule del table $TABLE ; do : ; done
+while sudo ip rule del table main suppress_prefixlength 0 ; do : ; done
+
+for iface in $(ls /sys/class/net) ; do
+    if systemd-resolve --status $iface | grep "old_default_dns" > /dev/null ; then
+        sudo systemd-resolve --interface $iface --set-domain "~."
+    fi
+done
+
+}
+
+
+case "$1" in
+    up)
+        up
+        ;;
+    down)
+        down
+        ;;
+    *)
+        echo Unknown command $1
+        exit 1
+esac

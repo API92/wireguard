@@ -1,0 +1,11 @@
+[Match]
+Name=wg0
+
+[Network]
+Address=192.168.2.1/24
+Address=fd01::1/64
+DNS=8.8.8.8
+DNS=8.8.4.4
+DNS=2001:4860:4860::8888
+DNS=2001:4860:4860::8844
+DNSDefaultRoute=no

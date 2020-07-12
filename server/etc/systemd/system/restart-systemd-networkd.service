@@ -1,0 +1,10 @@
+[Unit]
+Description=systemd-networkd restarter for drop-in .conf changes
+After=systemd-networkd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart systemd-networkd.service
+
+[Install]
+WantedBy=network.target
