@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+
+echo $@
+
+if [ "$1" != "remove" -a "$1" != "purge" -a "$1" != "upgrade" ] ; then
+    exit
+fi
+
+for fn in /etc/ufw/after{,6}.rules ; do
+    mv "$fn" "$fn.bak"
+    cat "$fn.bak" | grep -v wg0 | sed -e 'H' -e '/^\*filter/d' -e '/^$/d' -e 's/.*//;x;s/^\n//' -e '/^\n*\*filter\s*\nCOMMIT/d' | sed -e 'H' -e '/^\*nat/d' -e '/^$/d' -e 's/.*//;x;s/^\n//' -e '/^\n*\*nat\s*\nCOMMIT/d' > "$fn"
+done
+
+if [ "$1" = "purge" ] ; then
+    rm /etc/systemd/network/990-wg0.netdev.d/*.conf 2>/dev/null || true
+    rm /var/tmp/wgadm_pwdhash.bin 2>/dev/null || true
+    rm /var/tmp/wgadm_jwt_key.bin 2>/dev/null || true
+fi
+
+ufw reload
+

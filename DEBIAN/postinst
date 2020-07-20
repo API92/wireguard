@@ -1,0 +1,64 @@
+#!/usr/bin/bash
+
+echo $@
+
+if [ "$1" != "configure" -o "$2" != "" ] ; then
+    exit
+fi
+
+cat /etc/ufw/after.rules.wg0-append >> /etc/ufw/after.rules
+cat /etc/ufw/after6.rules.wg0-append >> /etc/ufw/after6.rules
+
+THIS_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
+echo "$THIS_PRIVKEY" | openssl pkey -inform pem -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+printf "%s" "$THIS_PRIVKEY" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub
+chown root:systemd-network /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+
+PSK=$(head -c 32 /dev/urandom|base64)
+PEER_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
+PEER_PUBKEY=$(printf "%s" "$PEER_PRIVKEY" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64)
+PEER_PRIVKEY=$(echo "$PEER_PRIVKEY" | openssl pkey -inform pem -outform der | tail -c 32 | base64)
+
+echo -e "[WireGuardPeer]\n\
+PublicKey=$PEER_PUBKEY\n\
+PresharedKey=$PSK\n\
+AllowedIPs=fd01::2/128,192.168.2.2/32" > /etc/systemd/network/990-wg0.netdev.d/client.conf
+
+read -p "Allow OpenSSH connections in ufw? [Y/n]" ALLOW_SSH
+read -p "Enable and reload ufw? [Y/n] " ENABLE_UFW
+
+if [ ! -f /var/tmp/wgadm_pwdhash.bin ] ; then
+    sudo -u nobody python3 /opt/wgadm/wgadm.py --netdev . --network . --set-password
+fi
+
+QUICK_CONF=$(echo -e "[Interface]\n\
+Address=fd01::2,192.168.2.2\n\
+PrivateKey=${PEER_PRIVKEY}\n\
+DNS=2001:4860:4860::8888,2001:4860:4860::8844,8.8.8.8,8.8.4.4\n\
+[Peer]
+PublicKey=$(cat /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub)\n\
+PresharedKey=${PSK}\n\
+AllowedIPs=::0/0,0.0.0.0/0\n\
+Endpoint=$(hostname):51820")
+
+echo "wg-quick conf:"
+echo "$QUICK_CONF"
+echo -e "\n"
+
+echo "$QUICK_CONF" | python3 /opt/wgadm/qr.py
+
+if [[ ! "$ENABLE_UFW" || "${ENABLE_UFW,,}" =~ "^y" ]] ; then
+    systemctl enable ufw
+    systemctl start ufw
+    if [[ ! "$ALLOW_SSH" || "${ALLOW_SSH,,}" =~ "^y" ]] ; then
+        ufw allow OpenSSH
+    fi
+    ufw enable
+    ufw reload
+fi
+
+systemctl daemon-reload
+systemctl enable wgadm.service && systemctl restart wgadm.service
+systemctl enable restart-systemd-networkd.path && systemctl restart restart-systemd-networkd.path
+sysctl -p /etc/sysctl.d/990-ip_forward.conf
+systemctl restart systemd-networkd

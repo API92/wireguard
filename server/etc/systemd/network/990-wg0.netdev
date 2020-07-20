@@ -5,5 +5,5 @@ Description=WireGuard tunnel wg0
 
 [WireGuard]
 ListenPort=51820
-PrivateKeyFile=/etc/systemd/network/999-wg0.netdev.d/keys/wgserver.key
+PrivateKeyFile=/etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
 

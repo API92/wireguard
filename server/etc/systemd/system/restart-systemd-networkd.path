@@ -1,5 +1,5 @@
 [Path]
-PathChanged=/etc/systemd/network/999-wg0.netdev.d
+PathChanged=/etc/systemd/network/990-wg0.netdev.d
 
 [Install]
 WantedBy=network.target

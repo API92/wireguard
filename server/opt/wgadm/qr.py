@@ -1406,3 +1406,11 @@ class QRCode(object):
         code += [[False]*width] * self.border
 
         return code
+
+
+if __name__ == '__main__':
+    import sys
+    data = sys.stdin.read()
+    code = QRCode(error_correction=ERROR_CORRECT_L)
+    code.add_data(data)
+    code.print_tty()

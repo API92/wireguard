@@ -340,6 +340,15 @@ class AdmHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
             f.write(h)
         self.__admin_pwdhash = h
 
+    @staticmethod
+    def set_password(pwd):
+        if not pwd:
+            return
+        h = hash_password(pwd)
+        with open('/var/tmp/wgadm_pwdhash.bin', 'wt') as f:
+            fcntl.lockf(f, fcntl.LOCK_EX)
+            f.write(h)
+
     @property
     def jwt_key(self):
         try:
@@ -1022,5 +1031,11 @@ if __name__ == '__main__':
     parser.add_argument('--netdev', metavar='NETDEV_FILE', required=True)
     parser.add_argument('--network', metavar='NETWORK_FILE', required=True)
     parser.add_argument('--pubkey', metavar='SERVER_PUBKEY_FILE', default=None)
+    parser.add_argument('--set-password', action='store_true')
     args = parser.parse_args()
-    run_server(args.port, args.netdev, args.network, args.pubkey)
+    if args.set_password:
+        import getpass
+        pwd = getpass.getpass('Enter new wgadm password: ')
+        AdmHTTPServer.set_password(pwd)
+    else:
+        run_server(args.port, args.netdev, args.network, args.pubkey)

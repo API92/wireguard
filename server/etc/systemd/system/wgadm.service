@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=/opt/wgadm/wgadm.py --port 80 --netdev /etc/systemd/network/999-wg0.netdev --network /etc/systemd/network/999-wg0.network --pubkey /etc/systemd/network/999-wg0.netdev.d/keys/wgserver.pub
+ExecStart=/opt/wgadm/wgadm.py --port 80 --netdev /etc/systemd/network/990-wg0.netdev --network /etc/systemd/network/990-wg0.network --pubkey /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub
 
 [Install]
 WantedBy=multi-user.target
