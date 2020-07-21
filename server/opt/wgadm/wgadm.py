@@ -239,6 +239,9 @@ class TunnelConfig:
     def save_peer(self):
         with open(self.peer_file, 'w') as fo:
             self.__configs['peer'].write(fo)
+            mod = os.fstat(fo.fileno()).st_mode
+            if mod % 8**3 != 0o666:
+                os.fchmod(fo.fileno(), 0o666)
 
     def write_peer_wgquick_config(self, out):
         peer_addrs = []

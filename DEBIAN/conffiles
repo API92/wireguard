@@ -1,0 +1,2 @@
+/etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+/etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub

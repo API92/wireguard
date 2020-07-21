@@ -2,7 +2,7 @@
 
 echo "$0" $@ 1>&2
 
-if [ "$1" != "remove" -a "$1" != "purge" ] ; then
+if [ "$1" != "upgrade" -a "$1" != "remove" -a "$1" != "purge" ] ; then
     exit
 fi
 

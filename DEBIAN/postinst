@@ -2,61 +2,72 @@
 
 echo "$0" $@ 1>&2
 
-if [ "$1" != "configure" -o "$2" != "" ] ; then
+if [ "$1" != "configure" ] ; then
     exit
 fi
+
+OLD_VER="$2"
 
 cat /etc/ufw/after.rules.wg0-append >> /etc/ufw/after.rules
 cat /etc/ufw/after6.rules.wg0-append >> /etc/ufw/after6.rules
 
-THIS_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
-echo "$THIS_PRIVKEY" | openssl pkey -inform pem -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
-printf "%s" "$THIS_PRIVKEY" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub
-chown root:systemd-network /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+if [[ ! "${OLD_VER}" ]] ; then
 
-PSK=$(head -c 32 /dev/urandom|base64)
-PEER_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
-PEER_PUBKEY=$(printf "%s" "$PEER_PRIVKEY" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64)
-PEER_PRIVKEY=$(echo "$PEER_PRIVKEY" | openssl pkey -inform pem -outform der | tail -c 32 | base64)
+    read -p "Allow OpenSSH connections in ufw? [Y/n] " ALLOW_SSH
+    read -p "Enable and reload ufw? [Y/n] " ENABLE_UFW
 
-echo -e "[WireGuardPeer]\n\
-PublicKey=$PEER_PUBKEY\n\
-PresharedKey=$PSK\n\
-AllowedIPs=fd01::2/128,192.168.2.2/32" > /etc/systemd/network/990-wg0.netdev.d/client.conf
+    THIS_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
+    echo "${THIS_PRIVKEY}" | openssl pkey -inform pem -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+    printf "%s" "${THIS_PRIVKEY}" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64 > /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub
+    chmod 0777 /etc/systemd/network/990-wg0.netdev.d
+    chown root:systemd-network /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
+    chmod 0640 /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.key
 
-read -p "Allow OpenSSH connections in ufw? [Y/n]" ALLOW_SSH
-read -p "Enable and reload ufw? [Y/n] " ENABLE_UFW
+    PSK=$(head -c 32 /dev/urandom|base64)
+    PEER_PRIVKEY=$(openssl genpkey -algorithm x25519 -outform pem)
+    PEER_PUBKEY=$(printf "%s" "${PEER_PRIVKEY}" | openssl pkey -inform pem -pubout -outform der | tail -c 32 | base64)
+    PEER_PRIVKEY=$(echo "${PEER_PRIVKEY}" | openssl pkey -inform pem -outform der | tail -c 32 | base64)
 
-PYTHONDONTWRITEBYTECODE=1
+    echo -e "[WireGuardPeer]\n\
+    PublicKey=${PEER_PUBKEY}\n\
+    PresharedKey=${PSK}\n\
+    AllowedIPs=fd01::2/128,192.168.2.2/32" | sudo -u nobody tee /etc/systemd/network/990-wg0.netdev.d/client.conf > /dev/null
+    chmod 0666 /etc/systemd/network/990-wg0.netdev.d/client.conf
 
-if [ ! -f /var/tmp/wgadm_pwdhash.bin ] ; then
-    sudo -u nobody python3 /opt/wgadm/wgadm.py --netdev . --network . --set-password
-fi
+    PYTHONDONTWRITEBYTECODE=1
 
-QUICK_CONF=$(echo -e "[Interface]\n\
-Address=fd01::2,192.168.2.2\n\
-PrivateKey=${PEER_PRIVKEY}\n\
-DNS=2001:4860:4860::8888,2001:4860:4860::8844,8.8.8.8,8.8.4.4\n\
-[Peer]
-PublicKey=$(cat /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub)\n\
-PresharedKey=${PSK}\n\
-AllowedIPs=::0/0,0.0.0.0/0\n\
-Endpoint=$(hostname):51820")
-
-echo -e "\n"
-echo "wg-quick conf:"
-echo "$QUICK_CONF"
-echo -e "\n"
-
-echo "$QUICK_CONF" | python3 /opt/wgadm/qr.py
-
-if [[ ! "$ENABLE_UFW" || "${ENABLE_UFW,,}" =~ "^y" ]] ; then
-    systemctl enable ufw
-    systemctl start ufw
-    if [[ ! "$ALLOW_SSH" || "${ALLOW_SSH,,}" =~ "^y" ]] ; then
-        ufw allow OpenSSH
+    if [ ! -f /var/tmp/wgadm_pwdhash.bin ] ; then
+        sudo -u nobody python3 /opt/wgadm/wgadm.py --netdev . --network . --set-password
     fi
-    ufw enable
+
+    QUICK_CONF=$(echo -e "[Interface]\n\
+    Address=fd01::2,192.168.2.2\n\
+    PrivateKey=${PEER_PRIVKEY}\n\
+    DNS=2001:4860:4860::8888,2001:4860:4860::8844,8.8.8.8,8.8.4.4\n\
+    [Peer]
+    PublicKey=$(cat /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub)\n\
+    PresharedKey=${PSK}\n\
+    AllowedIPs=::0/0,0.0.0.0/0\n\
+    Endpoint=$(hostname):51820")
+
+    echo -e "\n"
+    echo "wg-quick conf:"
+    echo "${QUICK_CONF}"
+    echo -e "\n"
+
+    echo "${QUICK_CONF}" | python3 /opt/wgadm/qr.py
+    echo -e "\n"
+
+    if [[ ! "${ENABLE_UFW}" || "${ENABLE_UFW,,}" =~ ^y ]] ; then
+        systemctl enable ufw
+        systemctl start ufw
+        if [[ ! "${ALLOW_SSH}" || "${ALLOW_SSH,,}" =~ ^y ]] ; then
+            ufw allow OpenSSH
+        fi
+        ufw --force enable
+    fi
+
+else
     ufw reload
 fi
 
