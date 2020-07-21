@@ -13,6 +13,11 @@ cat /etc/ufw/after6.rules.wg0-append >> /etc/ufw/after6.rules
 
 if [[ ! "${OLD_VER}" ]] ; then
 
+    if [ "$(hostname)" = "localhost" ] ; then
+        read -p "Enter hostname for connecting to this host: " HOSTNAME
+        hostnamectl set-hostname "$HOSTNAME"
+    fi
+
     read -p "Allow OpenSSH connections in ufw? [Y/n] " ALLOW_SSH
     read -p "Enable and reload ufw? [Y/n] " ENABLE_UFW
 
@@ -29,9 +34,9 @@ if [[ ! "${OLD_VER}" ]] ; then
     PEER_PRIVKEY=$(echo "${PEER_PRIVKEY}" | openssl pkey -inform pem -outform der | tail -c 32 | base64)
 
     echo -e "[WireGuardPeer]\n\
-    PublicKey=${PEER_PUBKEY}\n\
-    PresharedKey=${PSK}\n\
-    AllowedIPs=fd01::2/128,192.168.2.2/32" | sudo -u nobody tee /etc/systemd/network/990-wg0.netdev.d/client.conf > /dev/null
+PublicKey=${PEER_PUBKEY}\n\
+PresharedKey=${PSK}\n\
+AllowedIPs=fd01::2/128,192.168.2.2/32" | sudo -u nobody tee /etc/systemd/network/990-wg0.netdev.d/client.conf > /dev/null
     chmod 0666 /etc/systemd/network/990-wg0.netdev.d/client.conf
 
     PYTHONDONTWRITEBYTECODE=1
@@ -41,14 +46,14 @@ if [[ ! "${OLD_VER}" ]] ; then
     fi
 
     QUICK_CONF=$(echo -e "[Interface]\n\
-    Address=fd01::2,192.168.2.2\n\
-    PrivateKey=${PEER_PRIVKEY}\n\
-    DNS=2001:4860:4860::8888,2001:4860:4860::8844,8.8.8.8,8.8.4.4\n\
-    [Peer]
-    PublicKey=$(cat /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub)\n\
-    PresharedKey=${PSK}\n\
-    AllowedIPs=::0/0,0.0.0.0/0\n\
-    Endpoint=$(hostname):51820")
+Address=fd01::2,192.168.2.2\n\
+PrivateKey=${PEER_PRIVKEY}\n\
+DNS=2001:4860:4860::8888,2001:4860:4860::8844,8.8.8.8,8.8.4.4\n\
+[Peer]
+PublicKey=$(cat /etc/systemd/network/990-wg0.netdev.d/keys/wgserver.pub)\n\
+PresharedKey=${PSK}\n\
+AllowedIPs=::0/0,0.0.0.0/0\n\
+Endpoint=$(hostname):51820")
 
     echo -e "\n"
     echo "wg-quick conf:"
