@@ -19,6 +19,7 @@ import os
 import pwd
 import qr
 import random
+import shutil
 import socket
 import socketserver
 import subprocess
@@ -230,6 +231,10 @@ class TunnelConfig:
         if key not in self.__attrs:
             return super().__setattr__(key, value)
         return self.__setitem__(key, value)
+
+    def move_peer(self, dst):
+        shutil.move(self.peer_file, dst)
+        self.peer_file = dst
 
     def save_peer(self):
         with open(self.peer_file, 'w') as fo:
@@ -681,8 +686,8 @@ class AdmHTTPHandler(http.server.BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.echo('<html><body>\n')
-        self.echo('Name: %s<br/>\n' % html.escape(peer_name))
         self.echo('<form action="%s" method="POST" enctype="application/x-www-form-urlencoded">\n' % html.escape(self.path))
+        self.echo('Name: <input name="name" size="20" value="%s"/><br/>\n' % html.escape(peer_name))
         self.echo('Public key: <input name="public_key" size="50" value="%s"/><br/>\n' % html.escape(config.peer_public_key))
         self.echo('Allowed IPs: <input name="allowed_ips" size="50" value="%s"/><br/>\n' % html.escape(CommaSepIPNets.to_str(config.peer_allowed_ips)))
         self.echo('Preshared key: <input name="preshared_key" size="50" value="%s"/><br/>\n' % html.escape(config.peer_preshared_key))
@@ -709,6 +714,7 @@ class AdmHTTPHandler(http.server.BaseHTTPRequestHandler):
             return
 
         form = cgi.FieldStorage(io.BytesIO(self.in_body), environ={'REQUEST_METHOD': 'POST'})
+        new_peer_name = form.getfirst('name')
         public_key = form.getfirst('public_key')
         allowed_ips = form.getfirst('allowed_ips')
         preshared_key = form.getfirst('preshared_key')
@@ -718,14 +724,25 @@ class AdmHTTPHandler(http.server.BaseHTTPRequestHandler):
                 allowed_ips=allowed_ips, preshared_key=preshared_key,
                 persistent_keepalive=persistent_keepalive)
 
+        if new_peer_name != peer_name:
+            new_peer_path = self.peer_in_netdev_dir(new_peer_name)
+            if not new_peer_path:
+                errors.append('Incorrect peer new name')
+            elif os.path.exists(new_peer_path):
+                errors.append('Peer with new name already exists.')
+        else:
+            new_peer_path = None
+
         if errors:
             return self.edit_peer_form(errors)
 
+        if new_peer_path:
+            config.move_peer(new_peer_path)
         config.save_peer()
 
         self.send_response(303)
         self.send_header('Cache-Control', 'no-store')
-        self.send_header('Location', self.path)
+        self.send_header('Location', '/editpeer?peer=%s' % html.escape(new_peer_name))
         self.end_headers()
 
 

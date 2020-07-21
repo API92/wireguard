@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-echo $@
+echo "$0" $@ 1>&2
 
 if [ "$1" != "configure" -o "$2" != "" ] ; then
     exit
@@ -27,6 +27,8 @@ AllowedIPs=fd01::2/128,192.168.2.2/32" > /etc/systemd/network/990-wg0.netdev.d/c
 read -p "Allow OpenSSH connections in ufw? [Y/n]" ALLOW_SSH
 read -p "Enable and reload ufw? [Y/n] " ENABLE_UFW
 
+PYTHONDONTWRITEBYTECODE=1
+
 if [ ! -f /var/tmp/wgadm_pwdhash.bin ] ; then
     sudo -u nobody python3 /opt/wgadm/wgadm.py --netdev . --network . --set-password
 fi
@@ -41,6 +43,7 @@ PresharedKey=${PSK}\n\
 AllowedIPs=::0/0,0.0.0.0/0\n\
 Endpoint=$(hostname):51820")
 
+echo -e "\n"
 echo "wg-quick conf:"
 echo "$QUICK_CONF"
 echo -e "\n"

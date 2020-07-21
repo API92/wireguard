@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+
+echo "$0" $@ 1>&2
+
+if [[ "$1" == "upgrade" || "$1" == "failed-upgrade" ]] ; then
+    exit
+fi
+
+systemctl stop restart-systemd-networkd.path
+systemctl disable restart-systemd-networkd.path
+systemctl stop wgadm.service
+systemctl disable wgadm.service
+
+exit 0

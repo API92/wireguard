@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 
-echo $@
+echo "$0" $@ 1>&2
 
-if [ "$1" != "remove" -a "$1" != "purge" -a "$1" != "upgrade" ] ; then
+if [ "$1" != "remove" -a "$1" != "purge" ] ; then
     exit
 fi
 
@@ -12,10 +12,19 @@ for fn in /etc/ufw/after{,6}.rules ; do
 done
 
 if [ "$1" = "purge" ] ; then
-    rm /etc/systemd/network/990-wg0.netdev.d/*.conf 2>/dev/null || true
-    rm /var/tmp/wgadm_pwdhash.bin 2>/dev/null || true
-    rm /var/tmp/wgadm_jwt_key.bin 2>/dev/null || true
+    for fn in /etc/systemd/network/990-wg0.netdev.d/*.conf ; do
+        rm "$fn"
+    done
+    [ -f /var/tmp/wgadm_pwdhash.bin ] && rm /var/tmp/wgadm_pwdhash.bin
+    [ -f /var/tmp/wgadm_jwt_key.bin ] && rm /var/tmp/wgadm_jwt_key.bin
 fi
 
 ufw reload
 
+systemctl daemon-reload
+systemctl restart systemd-networkd
+sysctl net.ipv4.ip_forward=0
+sysctl net.ipv6.conf.all.forwarding=0
+sysctl --system
+
+exit 0
