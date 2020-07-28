@@ -4,8 +4,8 @@ DEV=wg0
 EP=example.com:51820
 IPV4=192.168.2.2/24
 IPV6=fd01::2/64
-CLIENTKEY=/home/user/.certs/wg/client.key
-SERVERPUBKEY=$(cat /home/user/.certs/wg/wgserver.pub)
+CLIENTKEY=/home/user/.cert/wg/client.key
+SERVERPUBKEY=$(cat /home/user/.cert/wg/wgserver.pub)
 MARK=0xcafebabe
 TABLE=$MARK
 
@@ -46,6 +46,8 @@ function down {
 sudo ip link del $DEV
 while sudo ip rule del table $TABLE ; do : ; done
 while sudo ip rule del table main suppress_prefixlength 0 ; do : ; done
+while sudo ip -6 rule del table $TABLE ; do : ; done
+while sudo ip -6 rule del table main suppress_prefixlength 0 ; do : ; done
 
 for iface in $(ls /sys/class/net) ; do
     if systemd-resolve --status $iface | grep "old_default_dns" > /dev/null ; then
